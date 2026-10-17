@@ -27,6 +27,27 @@ MUTED_TEXT = (58, 76, 101)
 LINE = (195, 218, 228)
 TILE_FILL = (251, 250, 245)
 
+# The palette definitions and 0.5 blend match Pimoroni's E673 Spectra 6
+# driver. The blended values approximate the pigments closely enough for
+# useful error diffusion while retaining the display's six native colours.
+SPECTRA6_DESATURATED_PALETTE = (
+    (0, 0, 0),
+    (255, 255, 255),
+    (255, 255, 0),
+    (255, 0, 0),
+    (0, 0, 255),
+    (0, 255, 0),
+)
+SPECTRA6_SATURATED_PALETTE = (
+    (0, 0, 0),
+    (161, 164, 165),
+    (208, 190, 71),
+    (156, 72, 75),
+    (61, 59, 94),
+    (58, 91, 70),
+)
+SPECTRA6_SATURATION = 0.5
+
 WMO_DESCRIPTIONS = {
     0: ("Sunny", "Clear"),
     1: ("Mainly sunny", "Mainly clear"),
@@ -274,7 +295,35 @@ def description(code: int, is_day: bool) -> str:
     return values[0 if is_day else 1]
 
 
-def render_dashboard(data: DashboardData, icons_dir: Path, output: Path) -> None:
+def dither_for_spectra6(image: Image.Image) -> Image.Image:
+    """Dither an RGB image to the Inky Frame's six native colours."""
+    palette_values = [
+        int(saturated * SPECTRA6_SATURATION + desaturated * (1.0 - SPECTRA6_SATURATION))
+        for saturated_colour, desaturated_colour in zip(
+            SPECTRA6_SATURATED_PALETTE,
+            SPECTRA6_DESATURATED_PALETTE,
+        )
+        for saturated, desaturated in zip(saturated_colour, desaturated_colour)
+    ]
+    palette = Image.new("P", (1, 1))
+    palette.putpalette(palette_values)
+    dithered = image.convert("RGB").quantize(
+        colors=6,
+        palette=palette,
+        dither=Image.Dither.FLOYDSTEINBERG,
+    )
+    dithered.putpalette(
+        [component for colour in SPECTRA6_DESATURATED_PALETTE for component in colour]
+    )
+    return dithered
+
+
+def render_dashboard(
+    data: DashboardData,
+    icons_dir: Path,
+    output: Path,
+    dither: bool = False,
+) -> None:
     if not icons_dir.is_dir():
         raise RuntimeError(f"Icon directory does not exist: {icons_dir}")
 
@@ -359,7 +408,8 @@ def render_dashboard(data: DashboardData, icons_dir: Path, output: Path) -> None
         centered_text(draw, (center, 446), f"{point.temperature}°", regular_20)
 
     output.parent.mkdir(parents=True, exist_ok=True)
-    canvas.save(output, format="PNG", optimize=True)
+    output_image = dither_for_spectra6(canvas) if dither else canvas
+    output_image.save(output, format="PNG", optimize=True)
 
 
 def parse_args() -> argparse.Namespace:
@@ -391,6 +441,11 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Read a saved Open-Meteo JSON response instead of requesting live data",
     )
+    parser.add_argument(
+        "--dither",
+        action="store_true",
+        help="Dither the PNG to the six-colour Spectra 6 display palette",
+    )
     parser.add_argument("--timeout", type=float, default=15.0, help="HTTP timeout in seconds")
     return parser.parse_args()
 
@@ -405,7 +460,7 @@ def main() -> int:
         )
         data = build_dashboard_data(payload)
         output = args.output.expanduser().resolve()
-        render_dashboard(data, args.icons_dir.expanduser().resolve(), output)
+        render_dashboard(data, args.icons_dir.expanduser().resolve(), output, dither=args.dither)
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

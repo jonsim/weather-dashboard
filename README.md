@@ -54,7 +54,19 @@ Available options:
 --icons-dir PATH       Override the bundled icon directory
 --timeout SECONDS      HTTP request timeout
 --data-file PATH       Render a saved Open-Meteo JSON response offline
+--dither               Dither to the six-colour Spectra 6 display palette
 ```
+
+For a 7.3-inch Inky Frame with a Spectra 6 panel, generate a display-ready
+palette PNG with Floyd–Steinberg dithering:
+
+```bash
+python weather-dashboard.py --dither
+```
+
+The dithered PNG contains exactly the panel's six native colours. This lets the
+Inky Frame use the prepared pixels directly instead of dithering the full-colour
+dashboard while loading it.
 
 ## Cached or offline data
 

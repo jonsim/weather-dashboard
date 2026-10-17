@@ -6,7 +6,7 @@ from pathlib import Path
 from PIL import Image
 
 from weather_dashboard import (
-    SPECTRA6_DESATURATED_PALETTE,
+    SPECTRA6_OUTPUT_PALETTE,
     DailyPoint,
     DashboardData,
     ForecastPoint,
@@ -61,11 +61,26 @@ class TestRendering(unittest.TestCase):
 
         palette = dithered.getpalette()
         expected = [
-            component for colour in SPECTRA6_DESATURATED_PALETTE for component in colour
+            component for colour in SPECTRA6_OUTPUT_PALETTE for component in colour
         ]
         self.assertEqual('P', dithered.mode)
         self.assertEqual(expected, palette)
         self.assertLessEqual(len(dithered.getcolors(maxcolors=256) or []), 6)
+
+    def test_dither_keeps_paper_white(self) -> None:
+        paper = Image.new('RGB', (32, 16), (249, 247, 240))
+
+        dithered = dither_for_spectra6(paper)
+
+        self.assertEqual([(paper.width * paper.height, 1)], dithered.getcolors())
+
+    def test_dither_retains_pale_blue_watercolor(self) -> None:
+        watercolor = Image.new('RGB', (32, 16), (190, 210, 235))
+
+        dithered = dither_for_spectra6(watercolor)
+
+        colour_counts = {index: count for count, index in dithered.getcolors() or []}
+        self.assertGreater(colour_counts.get(4, 0), 0)
 
     def test_renders_an_800_by_480_png(self) -> None:
         current = ForecastPoint(datetime(2026, 10, 17, 9), 13, 2, True)

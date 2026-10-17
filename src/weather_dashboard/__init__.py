@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageOps
 
 WIDTH = 800
 HEIGHT = 480
@@ -25,10 +25,8 @@ MUTED_TEXT = (58, 76, 101)
 LINE = (195, 218, 228)
 TILE_FILL = (251, 250, 245)
 
-# The palette definitions and 0.5 blend match Pimoroni's E673 Spectra 6
-# driver. The blended values approximate the pigments closely enough for
-# useful error diffusion while retaining the display's six native colours.
-SPECTRA6_DESATURATED_PALETTE = (
+# PNG palette written to disk. These values identify the panel's native inks.
+SPECTRA6_OUTPUT_PALETTE = (
     (0, 0, 0),
     (255, 255, 255),
     (255, 255, 0),
@@ -36,15 +34,21 @@ SPECTRA6_DESATURATED_PALETTE = (
     (0, 0, 255),
     (0, 255, 0),
 )
-SPECTRA6_SATURATED_PALETTE = (
+
+# A lighter working palette makes Pillow assign enough pigment to pale
+# watercolor strokes. The output indices are remapped to the native palette
+# after error diffusion, so these values never appear in the saved PNG.
+SPECTRA6_DITHER_PALETTE = (
     (0, 0, 0),
-    (161, 164, 165),
-    (208, 190, 71),
-    (156, 72, 75),
-    (61, 59, 94),
-    (58, 91, 70),
+    (255, 255, 255),
+    (245, 220, 100),
+    (185, 55, 55),
+    (105, 150, 210),
+    (0, 255, 0),
 )
-SPECTRA6_SATURATION = 0.5
+
+PAPER_MAX_SATURATION = 20
+PAPER_MIN_VALUE = 235
 
 WMO_DESCRIPTIONS = {
     0: ('Sunny', 'Clear'),
@@ -299,28 +303,27 @@ def description(code: int, is_day: bool) -> str:
 
 def dither_for_spectra6(image: Image.Image) -> Image.Image:
     """Dither an RGB image to the Inky Frame's six native colours."""
+    prepared = image.convert('RGB')
+    _, saturation, value = prepared.convert('HSV').split()
+    neutral = saturation.point(
+        lambda level: 255 if level <= PAPER_MAX_SATURATION else 0
+    )
+    bright = value.point(lambda level: 255 if level >= PAPER_MIN_VALUE else 0)
+    paper_mask = ImageChops.multiply(neutral, bright)
+    prepared.paste((255, 255, 255), mask=paper_mask)
+
     palette_values = [
-        int(saturated * SPECTRA6_SATURATION + desaturated * (1.0 - SPECTRA6_SATURATION))
-        for saturated_colour, desaturated_colour in zip(
-            SPECTRA6_SATURATED_PALETTE,
-            SPECTRA6_DESATURATED_PALETTE,
-            strict=True,
-        )
-        for saturated, desaturated in zip(
-            saturated_colour,
-            desaturated_colour,
-            strict=True,
-        )
+        component for colour in SPECTRA6_DITHER_PALETTE for component in colour
     ]
     palette = Image.new('P', (1, 1))
     palette.putpalette(palette_values)
-    dithered = image.convert('RGB').quantize(
+    dithered = prepared.quantize(
         colors=6,
         palette=palette,
         dither=Image.Dither.FLOYDSTEINBERG,
     )
     dithered.putpalette(
-        [component for colour in SPECTRA6_DESATURATED_PALETTE for component in colour]
+        [component for colour in SPECTRA6_OUTPUT_PALETTE for component in colour]
     )
     return dithered
 

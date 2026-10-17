@@ -12,7 +12,8 @@ This project renders a fixed-size watercolor weather dashboard from Open-Meteo d
 - Keep exactly five future-day entries below the horizontal divider.
 - Do not add a heading above the hourly tiles; their meaning is implied by the times.
 - Preserve the muted ivory, blue-gray, lavender, ochre, and aqua palette.
-- Preserve the icon naming convention: `assets/icons/wmo-{code}-{day|night}.png`.
+- Preserve the icon naming convention:
+  `src/weather_dashboard/assets/icons/wmo-{code}-{day|night}.png`.
 - Do not replace Open-Meteo with a provider that requires credentials unless explicitly requested.
 
 ## Development guidance
@@ -28,7 +29,7 @@ This project renders a fixed-size watercolor weather dashboard from Open-Meteo d
 
 Before handing off a change:
 
-1. Install dependencies from `requirements.txt`.
+1. Install the application and development dependencies with `uv sync --group dev`.
 2. Render once with live data or a saved Open-Meteo response.
 3. Confirm the PNG is 800x480.
 4. Inspect the image for clipping, missing icons, overlaps, and unreadable text.

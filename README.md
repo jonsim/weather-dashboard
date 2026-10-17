@@ -1,6 +1,8 @@
 # Watercolor Weather Dashboard
 
-Creates an **800×480 PNG** weather dashboard from live Open-Meteo data. The layout matches the supplied mock-up:
+Creates an **800×480 PNG** weather dashboard from live Open-Meteo data. It is
+packaged with a `src` layout and managed with [uv](https://docs.astral.sh/uv/).
+The dashboard contains:
 
 - today's conditions at the upper left;
 - a large current-weather icon in the upper middle;
@@ -9,35 +11,28 @@ Creates an **800×480 PNG** weather dashboard from live Open-Meteo data. The lay
 
 The bundled assets contain day and night watercolor icons for the supported WMO weather codes. Open-Meteo does not require an API key.
 
-## Requirements
+## Set up the project
 
-- Python 3.10 or newer
-- Pillow
-- Internet access when requesting live weather data
+Install the application and its development dependencies:
 
-## Setup
-
-```bash
-cd ~/programming/python/weather-dashboard
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
+```console
+uv sync --group dev
 ```
 
 ## Generate the dashboard
 
 The defaults use central London and let Open-Meteo choose the local timezone:
 
-```bash
-python weather-dashboard.py
+```console
+uv run weather-dashboard
 ```
 
 The generated file is `weather-dashboard.png` in the project directory.
 
 Choose another location and output path:
 
-```bash
-python weather-dashboard.py \
+```console
+uv run weather-dashboard \
   --latitude 53.4808 \
   --longitude -2.2426 \
   --timezone Europe/London \
@@ -60,8 +55,8 @@ Available options:
 For a 7.3-inch Inky Frame with a Spectra 6 panel, generate a display-ready
 palette PNG with Floyd–Steinberg dithering:
 
-```bash
-python weather-dashboard.py --dither
+```console
+uv run weather-dashboard --dither
 ```
 
 The dithered PNG contains exactly the panel's six native colours. This lets the
@@ -70,28 +65,62 @@ dashboard while loading it.
 
 ## Cached or offline data
 
-The `--data-file` option accepts the unmodified JSON returned by the Open-Meteo forecast endpoint. This is useful for testing and reproducible rendering:
+The `--data-file` option accepts the unmodified JSON returned by the Open-Meteo
+forecast endpoint. This is useful for testing and reproducible rendering:
 
-```bash
-python weather-dashboard.py \
+```console
+uv run weather-dashboard \
   --data-file open-meteo-response.json \
   --output output/cached-weather.png
 ```
 
 ## Fonts
 
-The renderer uses DejaVu Sans or Liberation Sans when available, then falls back to Pillow's default font. Set `WEATHER_DASHBOARD_FONT` to a `.ttf` file to override the regular and bold font source:
+The renderer uses DejaVu Sans or Liberation Sans when available, then falls back
+to Pillow's default font. Set `WEATHER_DASHBOARD_FONT` to a `.ttf` file to
+override the regular and bold font source:
 
-```bash
-WEATHER_DASHBOARD_FONT=/path/to/font.ttf python weather-dashboard.py
+```console
+WEATHER_DASHBOARD_FONT=/path/to/font.ttf uv run weather-dashboard
 ```
 
 ## Data and icon selection
 
 - Current conditions use Open-Meteo's `current` values.
-- The six hourly tiles begin at the current local hour and advance in two-hour steps.
+- The six hourly tiles begin at the current local hour and advance in two-hour
+  steps.
 - The five-day strip excludes today and uses the following five forecast days.
-- Current and hourly icons switch between day and night assets using Open-Meteo's `is_day` value.
+- Current and hourly icons switch between day and night assets using Open-Meteo's
+  `is_day` value.
 - Daily icons use their daytime variants.
 
 If an unexpected WMO code is returned, the cloudy icon is used as a safe fallback.
+
+## Run the tests
+
+The unit tests use Python's standard `unittest` framework:
+
+```console
+uv run python -m unittest discover -s tests
+```
+
+Run the same tests with coverage and print the missing lines:
+
+```console
+uv run coverage run -m unittest discover -s tests
+uv run coverage report
+```
+
+## Run the checks
+
+Install the Git hook once after cloning the project:
+
+```console
+uv run pre-commit install
+```
+
+Run every check over the repository whenever needed:
+
+```console
+uv run pre-commit run --all-files
+```

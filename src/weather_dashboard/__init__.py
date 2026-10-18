@@ -19,6 +19,10 @@ from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageOps
 WIDTH = 800
 HEIGHT = 480
 
+THEMES = ('high-contrast', 'watercolor')
+DEFAULT_THEME = 'high-contrast'
+ICONS_ROOT = Path(__file__).resolve().parent / 'assets' / 'icons'
+
 BACKGROUND = (249, 247, 240)
 TEXT = (38, 48, 64)
 MUTED_TEXT = (58, 76, 101)
@@ -257,6 +261,13 @@ def icon_path(icons_dir: Path, code: int, is_day: bool) -> Path:
     return icons_dir / f'wmo-3-{state}.png'
 
 
+def theme_icons_dir(theme: str, icons_dir: Path | None = None) -> Path:
+    """Return a custom icon directory or the directory for a bundled theme."""
+    if icons_dir is not None:
+        return icons_dir.expanduser().resolve()
+    return ICONS_ROOT / theme
+
+
 def paste_icon(
     canvas: Image.Image,
     icons_dir: Path,
@@ -434,8 +445,7 @@ def render_dashboard(
     output_image.save(output, format='PNG', optimize=True)
 
 
-def parse_args() -> argparse.Namespace:
-    package_dir = Path(__file__).resolve().parent
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description='Create an 800x480 watercolor weather dashboard PNG.',
     )
@@ -459,8 +469,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         '--icons-dir',
         type=Path,
-        default=package_dir / 'assets' / 'icons',
-        help='Directory containing wmo-CODE-day/night.png assets',
+        help='Override --theme with a custom wmo-CODE-day/night.png directory',
+    )
+    parser.add_argument(
+        '--theme',
+        choices=THEMES,
+        default=DEFAULT_THEME,
+        help=f'Bundled icon theme (default: {DEFAULT_THEME})',
     )
     parser.add_argument(
         '--data-file',
@@ -475,7 +490,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         '--timeout', type=float, default=15.0, help='HTTP timeout in seconds'
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def main() -> int:
@@ -490,8 +505,12 @@ def main() -> int:
         )
         data = build_dashboard_data(payload)
         output = args.output.expanduser().resolve()
+        icons_dir = theme_icons_dir(args.theme, args.icons_dir)
         render_dashboard(
-            data, args.icons_dir.expanduser().resolve(), output, dither=args.dither
+            data,
+            icons_dir,
+            output,
+            dither=args.dither,
         )
     except RuntimeError as exc:
         print(f'error: {exc}', file=sys.stderr)

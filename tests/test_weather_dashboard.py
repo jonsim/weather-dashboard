@@ -6,13 +6,18 @@ from pathlib import Path
 from PIL import Image
 
 from weather_dashboard import (
+    DEFAULT_THEME,
+    ICONS_ROOT,
     SPECTRA6_OUTPUT_PALETTE,
+    THEMES,
     DailyPoint,
     DashboardData,
     ForecastPoint,
     build_dashboard_data,
     dither_for_spectra6,
+    parse_args,
     render_dashboard,
+    theme_icons_dir,
 )
 
 
@@ -54,6 +59,55 @@ class TestDashboardData(unittest.TestCase):
 
 
 class TestRendering(unittest.TestCase):
+    def test_bundled_themes_each_contain_all_icons(self) -> None:
+        expected_names = {
+            f'wmo-{code}-{state}.png'
+            for code in (
+                0,
+                1,
+                2,
+                3,
+                45,
+                48,
+                51,
+                53,
+                55,
+                56,
+                57,
+                61,
+                63,
+                65,
+                66,
+                67,
+                71,
+                73,
+                75,
+                77,
+                80,
+                81,
+                82,
+                85,
+                86,
+                95,
+                96,
+                99,
+            )
+            for state in ('day', 'night')
+        }
+
+        for theme in THEMES:
+            with self.subTest(theme=theme):
+                names = {path.name for path in (ICONS_ROOT / theme).glob('wmo-*.png')}
+                self.assertEqual(expected_names, names)
+
+    def test_theme_selection_and_custom_icon_override(self) -> None:
+        args = parse_args(['--theme', 'watercolor'])
+        self.assertEqual('watercolor', args.theme)
+        self.assertEqual(ICONS_ROOT / 'watercolor', theme_icons_dir(args.theme))
+
+        custom = Path('custom-icons')
+        self.assertEqual(custom.resolve(), theme_icons_dir(DEFAULT_THEME, custom))
+
     def test_dither_uses_only_the_six_spectra_colours(self) -> None:
         image = Image.new('RGB', (32, 16), (120, 140, 180))
 
@@ -99,9 +153,7 @@ class TestRendering(unittest.TestCase):
                 for offset in range(1, 6)
             ],
         )
-        icons_dir = (
-            Path(__file__).parents[1] / 'src' / 'weather_dashboard' / 'assets' / 'icons'
-        )
+        icons_dir = ICONS_ROOT / DEFAULT_THEME
 
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / 'dashboard.png'

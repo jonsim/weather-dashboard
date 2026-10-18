@@ -9,7 +9,9 @@ The dashboard contains:
 - six two-hour forecast tiles in a 3×2 grid at the upper right;
 - the next five days in a single strip below a divider.
 
-The bundled assets contain day and night watercolor icons for the supported WMO weather codes. Open-Meteo does not require an API key.
+The bundled assets contain day and night icons in high-contrast and watercolor
+themes for every supported WMO weather code. Open-Meteo does not require an API
+key.
 
 ## Set up the project
 
@@ -46,11 +48,22 @@ Available options:
 --longitude FLOAT      Location longitude
 --timezone NAME        Open-Meteo timezone or "auto"
 --output PATH          Output PNG path
---icons-dir PATH       Override the bundled icon directory
+--theme NAME           Bundled icon theme: high-contrast or watercolor
+--icons-dir PATH       Override the selected theme with a custom icon directory
 --timeout SECONDS      HTTP request timeout
 --data-file PATH       Render a saved Open-Meteo JSON response offline
 --dither               Dither to the six-colour Spectra 6 display palette
 ```
+
+The new high-contrast artwork is used by default because it survives Spectra 6
+dithering particularly well. Select the original watercolor artwork with:
+
+```console
+uv run weather-dashboard --theme watercolor
+```
+
+The `--icons-dir` option takes precedence over `--theme` so existing custom icon
+packs continue to work.
 
 For a 7.3-inch Inky Frame with a Spectra 6 panel, generate a display-ready
 palette PNG with Floyd–Steinberg dithering:

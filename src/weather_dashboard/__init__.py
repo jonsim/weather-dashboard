@@ -24,9 +24,9 @@ DEFAULT_THEME = 'high-contrast'
 ICONS_ROOT = Path(__file__).resolve().parent / 'assets' / 'icons'
 
 BACKGROUND = (249, 247, 240)
-TEXT = (38, 48, 64)
-MUTED_TEXT = (58, 76, 101)
-LINE = (195, 218, 228)
+TEXT = (0, 0, 0)
+MUTED_TEXT = TEXT
+LINE = (128, 128, 128)
 TILE_FILL = (251, 250, 245)
 
 # PNG palette written to disk. These values identify the panel's native inks.
@@ -316,11 +316,11 @@ def dither_for_spectra6(image: Image.Image) -> Image.Image:
     """Dither an RGB image to the Inky Frame's six native colours."""
     prepared = image.convert('RGB')
     _, saturation, value = prepared.convert('HSV').split()
-    neutral = saturation.point(
+    neutral_mask = saturation.point(
         lambda level: 255 if level <= PAPER_MAX_SATURATION else 0
     )
     bright = value.point(lambda level: 255 if level >= PAPER_MIN_VALUE else 0)
-    paper_mask = ImageChops.multiply(neutral, bright)
+    paper_mask = ImageChops.multiply(neutral_mask, bright)
     prepared.paste((255, 255, 255), mask=paper_mask)
 
     palette_values = [
@@ -333,6 +333,18 @@ def dither_for_spectra6(image: Image.Image) -> Image.Image:
         palette=palette,
         dither=Image.Dither.FLOYDSTEINBERG,
     )
+
+    # Keep black text and grey rules achromatic. Diffusing neutral pixels through
+    # the full palette can otherwise introduce red and blue speckles at edges.
+    neutral_palette = Image.new('P', (1, 1))
+    neutral_palette.putpalette([0, 0, 0, 255, 255, 255])
+    neutral_dithered = prepared.quantize(
+        colors=2,
+        palette=neutral_palette,
+        dither=Image.Dither.FLOYDSTEINBERG,
+    )
+    dithered.paste(neutral_dithered, mask=neutral_mask)
+
     dithered.putpalette(
         [component for colour in SPECTRA6_OUTPUT_PALETTE for component in colour]
     )

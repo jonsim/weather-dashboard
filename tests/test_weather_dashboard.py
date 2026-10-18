@@ -128,6 +128,15 @@ class TestRendering(unittest.TestCase):
 
         self.assertEqual([(paper.width * paper.height, 1)], dithered.getcolors())
 
+    def test_dither_keeps_neutral_tones_achromatic(self) -> None:
+        grey = Image.new('RGB', (32, 16), (128, 128, 128))
+
+        dithered = dither_for_spectra6(grey)
+
+        used_indices = {index for _, index in dithered.getcolors() or []}
+        self.assertTrue(used_indices)
+        self.assertLessEqual(used_indices, {0, 1})
+
     def test_dither_retains_pale_blue_watercolor(self) -> None:
         watercolor = Image.new('RGB', (32, 16), (190, 210, 235))
 

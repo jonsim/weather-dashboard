@@ -54,8 +54,34 @@ class TestDashboardData(unittest.TestCase):
         self.assertEqual(6, len(data.hourly))
         self.assertEqual(5, len(data.daily))
         self.assertEqual(
-            [9, 11, 13, 15, 17, 19], [point.time.hour for point in data.hourly]
+            [10, 12, 14, 16, 18, 20], [point.time.hour for point in data.hourly]
         )
+
+    def test_hourly_entries_begin_at_the_closest_hour(self) -> None:
+        cases = {
+            '2026-10-17T06:55': [7, 9, 11, 13, 15, 17],
+            '2026-10-17T07:25': [7, 9, 11, 13, 15, 17],
+            '2026-10-17T07:30': [8, 10, 12, 14, 16, 18],
+        }
+
+        for current_time, expected_hours in cases.items():
+            with self.subTest(current_time=current_time):
+                payload = sample_payload()
+                start = datetime(2026, 10, 17, 6)
+                hourly_times = [start + timedelta(hours=offset) for offset in range(14)]
+                payload['current']['time'] = current_time
+                payload['hourly']['time'] = [
+                    value.isoformat(timespec='minutes') for value in hourly_times
+                ]
+                payload['hourly']['temperature_2m'] = list(range(14))
+                payload['hourly']['weather_code'] = [2] * 14
+                payload['hourly']['is_day'] = [1] * 14
+
+                data = build_dashboard_data(payload)
+
+                self.assertEqual(
+                    expected_hours, [point.time.hour for point in data.hourly]
+                )
 
 
 class TestRendering(unittest.TestCase):

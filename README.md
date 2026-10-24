@@ -100,8 +100,8 @@ WEATHER_DASHBOARD_FONT=/path/to/font.ttf uv run weather-dashboard
 ## Data and icon selection
 
 - Current conditions use Open-Meteo's `current` values.
-- The six hourly tiles begin at the current local hour and advance in two-hour
-  steps.
+- The six hourly tiles begin at the closest local hour (with the half-hour
+  rounded forward) and advance in two-hour steps.
 - The five-day strip excludes today and uses the following five forecast days.
 - Current and hourly icons switch between day and night assets using Open-Meteo's
   `is_day` value.

@@ -165,7 +165,9 @@ def build_dashboard_data(payload: dict[str, Any]) -> DashboardData:
         )
 
         hourly_times = [datetime.fromisoformat(value) for value in hourly_raw['time']]
-        start = current_time.replace(minute=0, second=0, microsecond=0)
+        start = (current_time + timedelta(minutes=30)).replace(
+            minute=0, second=0, microsecond=0
+        )
         hourly: list[ForecastPoint] = []
         for offset in range(0, 12, 2):
             target = start + timedelta(hours=offset)

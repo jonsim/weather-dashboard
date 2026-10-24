@@ -14,6 +14,7 @@ from weather_dashboard import (
     DashboardData,
     ForecastPoint,
     build_dashboard_data,
+    current_date_label,
     dither_for_spectra6,
     parse_args,
     render_dashboard,
@@ -48,6 +49,30 @@ def sample_payload() -> dict[str, object]:
 
 
 class TestDashboardData(unittest.TestCase):
+    def test_formats_current_date_with_ordinal_suffix(self) -> None:
+        self.assertEqual(
+            'Friday\n24th October',
+            current_date_label(datetime(2025, 10, 24)),
+        )
+
+        suffixes = {
+            1: 'st',
+            2: 'nd',
+            3: 'rd',
+            4: 'th',
+            11: 'th',
+            12: 'th',
+            13: 'th',
+            21: 'st',
+            22: 'nd',
+            23: 'rd',
+            31: 'st',
+        }
+        for day, suffix in suffixes.items():
+            with self.subTest(day=day):
+                label = current_date_label(datetime(2026, 1, day))
+                self.assertIn(f'\n{day}{suffix} January', label)
+
     def test_builds_six_hourly_and_five_future_daily_entries(self) -> None:
         data = build_dashboard_data(sample_payload())
 

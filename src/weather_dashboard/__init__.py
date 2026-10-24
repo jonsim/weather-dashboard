@@ -309,6 +309,14 @@ def hour_label(value: datetime) -> str:
     return f'{hour}{suffix}'
 
 
+def current_date_label(value: datetime) -> str:
+    day = value.day
+    suffix = (
+        'th' if 10 < day % 100 < 14 else {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
+    )
+    return f'{value:%A}\n{day}{suffix} {value:%B}'
+
+
 def description(code: int, is_day: bool) -> str:
     values = WMO_DESCRIPTIONS.get(code, ('Cloudy', 'Cloudy'))
     return values[0 if is_day else 1]
@@ -375,14 +383,23 @@ def render_dashboard(
     bold_82 = load_font(82, 'bold')
 
     # Current conditions: upper-left.
-    draw.text((43, 61), 'TODAY', font=regular_22, fill=MUTED_TEXT)
-    draw.text((39, 89), f'{data.current.temperature}°', font=bold_82, fill=TEXT)
-    draw.text(
-        (43, 201),
-        description(data.current.code, data.current.is_day),
-        font=regular_27,
-        fill=TEXT,
+    weekday, calendar_date = current_date_label(data.current.time).splitlines()
+    draw.text((43, 41), weekday.upper(), font=regular_22, fill=MUTED_TEXT)
+    date_position = (43, 70)
+    draw.text(date_position, calendar_date, font=regular_18, fill=MUTED_TEXT)
+
+    condition = description(data.current.code, data.current.is_day)
+    condition_position = (43, 201)
+    date_bottom = draw.textbbox(date_position, calendar_date, font=regular_18)[3]
+    condition_top = draw.textbbox(condition_position, condition, font=regular_27)[1]
+    temperature = f'{data.current.temperature}°'
+    temperature_bounds = draw.textbbox((0, 0), temperature, font=bold_82)
+    temperature_y = round(
+        (date_bottom + condition_top - temperature_bounds[1] - temperature_bounds[3])
+        / 2
     )
+    draw.text((39, temperature_y), temperature, font=bold_82, fill=TEXT)
+    draw.text(condition_position, condition, font=regular_27, fill=TEXT)
     draw.text(
         (43, 241),
         f'High {data.high}°  ·  Low {data.low}°',

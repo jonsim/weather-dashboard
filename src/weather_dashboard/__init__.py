@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFont, ImageOps
 
 WIDTH = 800
 HEIGHT = 480
@@ -53,6 +53,13 @@ SPECTRA6_DITHER_PALETTE = (
 
 PAPER_MAX_SATURATION = 20
 PAPER_MIN_VALUE = 235
+
+# Reflective e-paper has less apparent brightness and colour intensity than a
+# backlit monitor. Pre-compensate only the display-ready dithered output before
+# reducing it to the panel's six inks.
+INKY_BRIGHTNESS = 1.10
+INKY_CONTRAST = 1.15
+INKY_SATURATION = 1.35
 
 WMO_DESCRIPTIONS = {
     0: ('Sunny', 'Clear'),
@@ -324,13 +331,20 @@ def description(code: int, is_day: bool) -> str:
 
 def dither_for_spectra6(image: Image.Image) -> Image.Image:
     """Dither an RGB image to the Inky Frame's six native colours."""
-    prepared = image.convert('RGB')
-    _, saturation, value = prepared.convert('HSV').split()
+    source = image.convert('RGB')
+    _, saturation, value = source.convert('HSV').split()
     neutral_mask = saturation.point(
         lambda level: 255 if level <= PAPER_MAX_SATURATION else 0
     )
     bright = value.point(lambda level: 255 if level >= PAPER_MIN_VALUE else 0)
     paper_mask = ImageChops.multiply(neutral_mask, bright)
+
+    prepared = ImageEnhance.Brightness(source).enhance(INKY_BRIGHTNESS)
+    prepared = ImageEnhance.Contrast(prepared).enhance(INKY_CONTRAST)
+    prepared = ImageEnhance.Color(prepared).enhance(INKY_SATURATION)
+
+    # Enhancement must not tint the simulated paper or turn its subtle texture
+    # into ink speckles. Derive this mask from the untouched RGB image.
     prepared.paste((255, 255, 255), mask=paper_mask)
 
     palette_values = [

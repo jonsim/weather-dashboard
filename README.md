@@ -74,7 +74,10 @@ uv run weather-dashboard --dither
 
 The dithered PNG contains exactly the panel's six native colours. This lets the
 Inky Frame use the prepared pixels directly instead of dithering the full-colour
-dashboard while loading it.
+dashboard while loading it. Because reflective e-paper appears darker and less
+colourful than a backlit screen, `--dither` also applies a modest brightness,
+contrast, and saturation boost before reducing the image to those six colours.
+Full-colour output generated without `--dither` is not adjusted.
 
 ## Cached or offline data
 

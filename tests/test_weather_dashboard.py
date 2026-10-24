@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 from PIL import Image
 
@@ -184,9 +185,20 @@ class TestRendering(unittest.TestCase):
 
         dithered = dither_for_spectra6(grey)
 
-        used_indices = {index for _, index in dithered.getcolors() or []}
+        colour_counts = {index: count for count, index in dithered.getcolors() or []}
+        used_indices = set(colour_counts)
         self.assertTrue(used_indices)
         self.assertLessEqual(used_indices, {0, 1})
+        self.assertGreater(colour_counts.get(1, 0), colour_counts.get(0, 0))
+
+    def test_dither_boosts_muted_colour_before_palette_reduction(self) -> None:
+        muted_blue = Image.new('RGB', (32, 16), (120, 140, 180))
+
+        dithered = dither_for_spectra6(muted_blue)
+
+        used_indices = {index for _, index in dithered.getcolors() or []}
+        self.assertIn(4, used_indices)
+        self.assertLessEqual(used_indices, {0, 1, 4})
 
     def test_dither_retains_pale_blue_watercolor(self) -> None:
         watercolor = Image.new('RGB', (32, 16), (190, 210, 235))
@@ -222,6 +234,38 @@ class TestRendering(unittest.TestCase):
             with Image.open(output) as image:
                 self.assertEqual((800, 480), image.size)
                 self.assertEqual('P', image.mode)
+
+    def test_full_colour_render_skips_inky_compensation(self) -> None:
+        current = ForecastPoint(datetime(2026, 10, 17, 9), 13, 2, True)
+        data = DashboardData(
+            current=current,
+            high=15,
+            low=9,
+            hourly=[
+                ForecastPoint(
+                    current.time + timedelta(hours=offset), 13 + offset, 2, True
+                )
+                for offset in range(0, 12, 2)
+            ],
+            daily=[
+                DailyPoint(current.time + timedelta(days=offset), 15 + offset, 2)
+                for offset in range(1, 6)
+            ],
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'dashboard.png'
+            with patch('weather_dashboard.dither_for_spectra6') as compensate:
+                render_dashboard(
+                    data,
+                    ICONS_ROOT / DEFAULT_THEME,
+                    output,
+                    dither=False,
+                )
+
+            compensate.assert_not_called()
+            with Image.open(output) as image:
+                self.assertEqual('RGB', image.mode)
 
 
 if __name__ == '__main__':

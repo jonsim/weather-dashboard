@@ -1,0 +1,111 @@
+import gc
+import sys
+
+from urllib import urequest
+
+import inky_frame
+import inky_helper
+import pngdec
+from picographics import (
+    DISPLAY_INKY_FRAME_SPECTRA_7,
+    PicoGraphics,
+)
+
+from secrets import WIFI_PASSWORD, WIFI_SSID
+
+
+DASHBOARD_URL = (
+    "http://bunsen.home.jonsim.com:8080/weather-dashboard.png"
+)
+REFRESH_MINUTE = 0
+EXPECTED_WIDTH = 800
+EXPECTED_HEIGHT = 480
+
+
+display = PicoGraphics(DISPLAY_INKY_FRAME_SPECTRA_7)
+png = pngdec.PNG(display)
+
+
+def connect():
+    inky_helper.network_connect(WIFI_SSID, WIFI_PASSWORD)
+
+    # Refresh both the Pico and external Inky RTCs from NTP. If NTP is
+    # temporarily unavailable, retain the external RTC's existing time.
+    try:
+        inky_frame.set_time()
+    except Exception as error:
+        print("Could not update the RTC from NTP:")
+        sys.print_exception(error)
+
+
+def download_dashboard():
+    gc.collect()
+    response = None
+
+    try:
+        print("Downloading", DASHBOARD_URL)
+        response = urequest.urlopen(DASHBOARD_URL)
+        image_data = response.read()
+    finally:
+        if response is not None:
+            response.close()
+
+    if not image_data.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise ValueError("Server response is not a PNG")
+
+    return image_data
+
+
+def display_dashboard(image_data):
+    png.open_RAM(image_data)
+
+    if (
+        png.get_width() != EXPECTED_WIDTH
+        or png.get_height() != EXPECTED_HEIGHT
+    ):
+        raise ValueError(
+            "Expected an 800x480 dashboard, got {}x{}".format(
+                png.get_width(),
+                png.get_height(),
+            )
+        )
+
+    # Do not use PNG_COPY: the source PNG's palette indexes are not in
+    # PicoGraphics' native colour order. The default posterise mode maps
+    # each exact RGB colour to the corresponding Spectra ink.
+    display.set_pen(inky_frame.WHITE)
+    display.clear()
+    png.decode(0, 0)
+    display.update()
+
+
+def minutes_until_next_refresh():
+    # PCF85063A tuple:
+    # year, month, day, hour, minute, second, day_of_week
+    minute = inky_frame.rtc.datetime()[4]
+    delay = (REFRESH_MINUTE - minute) % 60
+    return delay or 60
+
+
+# Start with the battery-backed external RTC's current time.
+inky_frame.pcf_to_pico_rtc()
+
+while True:
+    try:
+        connect()
+        dashboard = download_dashboard()
+        display_dashboard(dashboard)
+        print("Dashboard updated successfully")
+        dashboard = None
+        gc.collect()
+    except Exception as error:
+        # The physical e-ink display retains the previous successful image.
+        print("Dashboard update failed:")
+        sys.print_exception(error)
+
+    sleep_minutes = minutes_until_next_refresh()
+    print("Sleeping for {} minute(s)".format(sleep_minutes))
+
+    # On battery this cuts power and schedules an RTC wake. On USB power,
+    # sleep_for blocks and then returns, so the loop handles both cases.
+    inky_frame.sleep_for(sleep_minutes)

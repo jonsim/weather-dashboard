@@ -200,6 +200,16 @@ class TestRendering(unittest.TestCase):
         self.assertIn(4, used_indices)
         self.assertLessEqual(used_indices, {0, 1, 4})
 
+    def test_dither_preserves_white_detail_in_dark_blue_clouds(self) -> None:
+        dark_blue = Image.new('RGB', (32, 16), (25, 45, 85))
+
+        dithered = dither_for_spectra6(dark_blue)
+
+        colour_counts = {index: count for count, index in dithered.getcolors() or []}
+        self.assertGreater(colour_counts.get(1, 0), 0)
+        self.assertGreater(colour_counts.get(4, 0), 0)
+        self.assertLessEqual(set(colour_counts), {0, 1, 4})
+
     def test_dither_retains_pale_blue_watercolor(self) -> None:
         watercolor = Image.new('RGB', (32, 16), (190, 210, 235))
 

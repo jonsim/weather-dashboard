@@ -56,10 +56,23 @@ PAPER_MIN_VALUE = 235
 
 # Reflective e-paper has less apparent brightness and colour intensity than a
 # backlit monitor. Pre-compensate only the display-ready dithered output before
-# reducing it to the panel's six inks.
+# reducing it to the panel's six inks. The artwork is already high contrast, so
+# increasing global contrast would crush detail in dark clouds.
 INKY_BRIGHTNESS = 1.10
-INKY_CONTRAST = 1.15
-INKY_SATURATION = 1.35
+INKY_SATURATION = 1.25
+
+# Spectra's blue ink appears especially dark. Lift blue/cyan shadows toward
+# white, then dither them with a darker working blue so that their shading uses
+# white, blue, and black rather than becoming a solid blue-black mass. The
+# saved palette still contains the panel's native blue at index 4.
+INKY_BLUE_HUE_MIN = 120
+INKY_BLUE_HUE_MAX = 190
+INKY_BLUE_SHADOW_LIFT = 0.45
+SPECTRA6_BLUE_DITHER_PALETTE = (
+    (0, 0, 0),
+    (255, 255, 255),
+    (55, 90, 155),
+)
 
 WMO_DESCRIPTIONS = {
     0: ('Sunny', 'Clear'),
@@ -332,15 +345,26 @@ def description(code: int, is_day: bool) -> str:
 def dither_for_spectra6(image: Image.Image) -> Image.Image:
     """Dither an RGB image to the Inky Frame's six native colours."""
     source = image.convert('RGB')
-    _, saturation, value = source.convert('HSV').split()
+    hue, saturation, value = source.convert('HSV').split()
     neutral_mask = saturation.point(
         lambda level: 255 if level <= PAPER_MAX_SATURATION else 0
     )
+    chromatic_mask = ImageOps.invert(neutral_mask)
+    blue_hue_mask = hue.point(
+        lambda level: 255 if INKY_BLUE_HUE_MIN <= level <= INKY_BLUE_HUE_MAX else 0
+    )
+    blue_mask = ImageChops.multiply(chromatic_mask, blue_hue_mask)
     bright = value.point(lambda level: 255 if level >= PAPER_MIN_VALUE else 0)
     paper_mask = ImageChops.multiply(neutral_mask, bright)
 
-    prepared = ImageEnhance.Brightness(source).enhance(INKY_BRIGHTNESS)
-    prepared = ImageEnhance.Contrast(prepared).enhance(INKY_CONTRAST)
+    blue_shadow_strength = value.point(
+        lambda level: round(255 * INKY_BLUE_SHADOW_LIFT * (1.0 - level / 255))
+    )
+    blue_shadow_mask = ImageChops.multiply(blue_mask, blue_shadow_strength)
+    prepared = Image.composite(
+        Image.new('RGB', source.size, 'white'), source, blue_shadow_mask
+    )
+    prepared = ImageEnhance.Brightness(prepared).enhance(INKY_BRIGHTNESS)
     prepared = ImageEnhance.Color(prepared).enhance(INKY_SATURATION)
 
     # Enhancement must not tint the simulated paper or turn its subtle texture
@@ -368,6 +392,21 @@ def dither_for_spectra6(image: Image.Image) -> Image.Image:
         dither=Image.Dither.FLOYDSTEINBERG,
     )
     dithered.paste(neutral_dithered, mask=neutral_mask)
+
+    # Constraining blue regions avoids complementary red/yellow speckles from
+    # full-palette error diffusion and reserves white pixels for cloud detail.
+    blue_palette = Image.new('P', (1, 1))
+    blue_palette.putpalette(
+        [component for colour in SPECTRA6_BLUE_DITHER_PALETTE for component in colour]
+    )
+    blue_dithered = prepared.quantize(
+        colors=3,
+        palette=blue_palette,
+        dither=Image.Dither.FLOYDSTEINBERG,
+    )
+    blue_index_map = list(range(256))
+    blue_index_map[2] = 4
+    dithered.paste(blue_dithered.point(blue_index_map), mask=blue_mask)
 
     dithered.putpalette(
         [component for colour in SPECTRA6_OUTPUT_PALETTE for component in colour]
